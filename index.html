@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Väder</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <h1>Väder<span>.</span></h1>
+    <p>Sök på vilken stad som helst i världen</p>
+  </div>
+
+  <!-- API key notice (visas om nyckeln saknas) -->
+  <div class="api-notice" id="apiNotice">
+    ⚠️ Ingen API-nyckel hittades. Ersätt <code>DIN_API_NYCKEL_HÄR</code> i koden med din nyckel från
+    <a href="https://openweathermap.org/api" target="_blank" style="color:#7a4900">openweathermap.org</a>.
+  </div>
+
+  <!-- Sökfält med autocomplete -->
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input
+      type="text"
+      id="cityInput"
+      placeholder="Skriv en stad…"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <div id="suggestions"></div>
+  </div>
+
+  <!-- Felmeddelande -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Laddningsindikator -->
+  <div class="loader" id="loader"><div class="spinner"></div></div>
+
+  <!-- Väderkort -->
+  <div class="weather-card" id="weatherCard">
+    <div class="card-top">
+      <div>
+        <div class="city-name" id="cityDisplay">—</div>
+        <div class="city-country" id="countryDisplay"></div>
+      </div>
+      <div class="weather-icon-wrap" id="iconWrap">☀️</div>
+    </div>
+
+    <div class="temp-row">
+      <div class="temp-big" id="tempDisplay">—</div>
+      <div class="temp-unit">°C</div>
+    </div>
+    <div class="weather-desc" id="descDisplay">—</div>
+
+    <div class="stats">
+      <div class="stat-box">
+        <div class="stat-label">Luftfuktighet</div>
+        <div class="stat-value"><span class="stat-icon">💧</span><span id="humidityDisplay">—</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Vind</div>
+        <div class="stat-value"><span class="stat-icon">🌬️</span><span id="windDisplay">—</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Lufttryck</div>
+        <div class="stat-value"><span class="stat-icon">🌡️</span><span id="pressureDisplay">—</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Sikt</div>
+        <div class="stat-value"><span class="stat-icon">👁️</span><span id="visibilityDisplay">—</span></div>
+      </div>
+    </div>
+
+    <div class="feels-pill" id="feelsPill">
+      🌤️ Känns som <strong id="feelsDisplay">—</strong>°C
+    </div>
+
+    <div class="updated" id="updatedDisplay"></div>
+  </div>
+
+</div>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>

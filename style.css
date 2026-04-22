@@ -1,0 +1,307 @@
+ 
+    :root {
+      --sky:       #e8f4fd;
+      --sky-mid:   #d0eaf8;
+      --white:     #ffffff;
+      --sand:      #fef9f0;
+      --sun:       #f5a623;
+      --sun-light: #fde9bf;
+      --text:      #1a2b3c;
+      --muted:     #7a99b0;
+      --card:      rgba(255,255,255,0.72);
+      --border:    rgba(180,215,240,0.6);
+      --shadow:    0 8px 32px rgba(60,120,180,0.10);
+      --radius:    20px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: linear-gradient(160deg, var(--sky) 0%, var(--sky-mid) 40%, var(--sand) 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 48px 16px 80px;
+      color: var(--text);
+    }
+
+    /* ── Floating blobs ── */
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::before {
+      width: 420px; height: 420px;
+      background: radial-gradient(circle, #c9e8fa 0%, transparent 70%);
+      top: -80px; right: -100px;
+      animation: drift 14s ease-in-out infinite alternate;
+    }
+    body::after {
+      width: 360px; height: 360px;
+      background: radial-gradient(circle, var(--sun-light) 0%, transparent 70%);
+      bottom: -60px; left: -80px;
+      animation: drift 18s ease-in-out infinite alternate-reverse;
+    }
+    @keyframes drift { from { transform: translate(0,0); } to { transform: translate(30px, 20px); } }
+
+    /* ── Container ── */
+    .app {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 460px;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .header h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2rem, 6vw, 2.8rem);
+      color: var(--text);
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+    .header h1 span { color: var(--sun); }
+    .header p {
+      margin-top: 6px;
+      font-size: 0.88rem;
+      color: var(--muted);
+      font-weight: 300;
+    }
+
+    /* ── Search ── */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 28px;
+    }
+    .search-icon {
+      position: absolute;
+      left: 18px; top: 50%; transform: translateY(-50%);
+      font-size: 1rem;
+      color: var(--muted);
+      pointer-events: none;
+    }
+    #cityInput {
+      width: 100%;
+      padding: 16px 20px 16px 46px;
+      border: 1.5px solid var(--border);
+      border-radius: 50px;
+      background: var(--white);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      color: var(--text);
+      outline: none;
+      box-shadow: var(--shadow);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    #cityInput::placeholder { color: var(--muted); }
+    #cityInput:focus {
+      border-color: #93c8e8;
+      box-shadow: 0 0 0 4px rgba(100,180,230,.15), var(--shadow);
+    }
+
+    /* ── Autocomplete dropdown ── */
+    #suggestions {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0; right: 0;
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      z-index: 10;
+      display: none;
+    }
+    #suggestions.open { display: block; animation: slideDown .15s ease; }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+    .suggestion-item {
+      padding: 13px 20px;
+      cursor: pointer;
+      font-size: 0.93rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      transition: background .12s;
+    }
+    .suggestion-item:last-child { border-bottom: none; }
+    .suggestion-item:hover, .suggestion-item.active { background: var(--sky); }
+    .suggestion-item .flag { font-size: 1.1rem; }
+    .suggestion-item .loc-name { font-weight: 500; }
+    .suggestion-item .loc-country { font-size: 0.78rem; color: var(--muted); margin-left: auto; }
+
+    /* ── Error ── */
+    .error-msg {
+      background: #fff0f0;
+      border: 1.5px solid #f5c6c6;
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      font-size: 0.88rem;
+      color: #c0392b;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .error-msg.show { display: block; animation: slideDown .2s ease; }
+
+    /* ── Loading ── */
+    .loader {
+      display: none;
+      justify-content: center;
+      padding: 24px;
+    }
+    .loader.show { display: flex; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--sun);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Weather card ── */
+    .weather-card {
+      background: var(--card);
+      backdrop-filter: blur(16px);
+      border: 1.5px solid var(--border);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 32px 28px 28px;
+      display: none;
+      animation: cardIn .4s cubic-bezier(.22,1,.36,1);
+    }
+    .weather-card.show { display: block; }
+    @keyframes cardIn { from { opacity:0; transform:translateY(18px) scale(.97); } to { opacity:1; transform:none; } }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+    .city-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.9rem;
+      line-height: 1.1;
+      color: var(--text);
+    }
+    .city-country {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 3px;
+      font-weight: 400;
+    }
+    .weather-icon-wrap {
+      width: 70px; height: 70px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, var(--sun-light), var(--sky));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.6rem;
+      flex-shrink: 0;
+      box-shadow: 0 4px 16px rgba(245,166,35,.2);
+    }
+    .weather-icon-wrap img { width: 52px; height: 52px; }
+
+    .temp-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .temp-big {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(3.2rem, 10vw, 4.4rem);
+      line-height: 1;
+      color: var(--text);
+    }
+    .temp-unit { font-size: 1.4rem; color: var(--muted); }
+    .weather-desc {
+      font-size: 1rem;
+      color: var(--muted);
+      font-weight: 400;
+      margin-bottom: 24px;
+      text-transform: capitalize;
+    }
+
+    /* ── Stats grid ── */
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .stat-box {
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      transition: transform .15s;
+    }
+    .stat-box:hover { transform: translateY(-2px); }
+    .stat-label {
+      font-size: 0.74rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-size: 1.18rem;
+      font-weight: 500;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .stat-value .stat-icon { font-size: 1rem; }
+
+    /* ── Feels like pill ── */
+    .feels-pill {
+      margin-top: 14px;
+      background: var(--sun-light);
+      border-radius: 50px;
+      padding: 10px 18px;
+      font-size: 0.88rem;
+      color: #8a5a00;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── Updated time ── */
+    .updated {
+      text-align: center;
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-top: 20px;
+    }
+
+    /* ── API key notice ── */
+    .api-notice {
+      background: var(--sun-light);
+      border: 1.5px dashed var(--sun);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      font-size: 0.83rem;
+      color: #7a4900;
+      margin-bottom: 20px;
+      line-height: 1.5;
+      display: none;
+    }
+    .api-notice.show { display: block; }
+    .api-notice code {
+      background: rgba(0,0,0,.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
