@@ -3,256 +3,401 @@
   import { API_KEY } from './config.js';
 
 
-const BASE = 'https://api.openweathermap.org';
+ // Bas-URL till OpenWeathers API
+  const BASE_URL = 'https://api.openweathermap.org';
  
-  const input       = document.getElementById('cityInput');
-  const suggestions = document.getElementById('suggestions');
-  const errorMsg    = document.getElementById('errorMsg');
-  const loader      = document.getElementById('loader');
-  const card        = document.getElementById('weatherCard');
-  const apiNotice   = document.getElementById('apiNotice');
+
+  const searchInput      = document.getElementById('cityInput');
+  const suggestionsList  = document.getElementById('suggestions');
+  const errorMessage     = document.getElementById('errorMsg');
+  const loadingSpinner   = document.getElementById('loader');
+  const weatherCard      = document.getElementById('weatherCard');
+  const apiKeyNotice     = document.getElementById('apiNotice');
  
-  // Visa notice om nyckel saknas
+  // Visa en varning om API-nyckeln inte är ifylld
   if (!API_KEY || API_KEY === 'DIN_API_NYCKEL_HÄR') {
-    apiNotice.classList.add('show');
+    apiKeyNotice.classList.add('show');
   }
  
-  // ── Debounce ──
-  // "ta emot hur många argument som helst och samla dem i en array som heter ...args"
-  let debTimer = null;
-  function debounce(fnc, delay) {
-    return (...args) => {
-      clearTimeout(debTimer);
-      debTimer = setTimeout(() => fnc(...args), delay);
+ 
+  // ════════════════════════════════════════════════════
+  //  DEBOUNCE – vänta lite innan sökning körs
+  // ════════════════════════════════════════════════════
+  // Problemet: om vi söker på varje bokstav skickas massor av anrop.
+  // Lösningen: vänta tills användaren slutat skriva i 280ms, sök sedan.
+  //
+  // functionToRun  = den funktion vi vill fördröja (t.ex. fetchSuggestions)
+  // waitMillis     = hur många millisekunder vi väntar
+  let debounceTimer = null;
+ 
+  function debounce(functionToRun, waitMillis) {
+    return function(...arguments_) {
+      // Avbryt den tidigare timern varje gång funktionen anropas
+      clearTimeout(debounceTimer);
+      // Starta en ny timer – om den inte avbryts körs funktionen när tiden löpt ut
+      debounceTimer = setTimeout(() => functionToRun(...arguments_), waitMillis);
     };
   }
  
-  // ── Autocomplete (Geo API) ──
-  let activeIndex = -1;
-  let currentSuggestions = [];
  
-  async function fetchSuggestions(query) {
-    if (!query || query.length < 2) { closeSuggestions(); return; }
+  // ════════════════════════════════════════════════════
+  //  AUTOCOMPLETE – stadsförslag medan man skriver
+  // ════════════════════════════════════════════════════
+ 
+  // Håller koll på vilken rad i dropdown-listan som är markerad med tangentbordet
+  let activeRowIndex = -1;  // -1 betyder att ingen rad är markerad
+ 
+  // Sparar listan med stadsförslag som kom från API:t
+  let currentCitySuggestions = [];
+ 
+  // Hämtar stadsförslag från OpenWeathers Geo API baserat på det man skrivit
+  async function fetchSuggestions(searchText) {
+    // Gör ingenting om texten är för kort
+    if (!searchText || searchText.length < 2) {
+      closeSuggestions();
+      return;
+    }
     try {
-      const res = await fetch(
-        `${BASE}/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${API_KEY}`
+      // Skicka ett anrop till Geo API:t med söktexten
+      // encodeURIComponent gör om specialtecken (t.ex. å ä ö) till URL-säkra tecken
+      const response = await fetch(
+        `${BASE_URL}/geo/1.0/direct?q=${encodeURIComponent(searchText)}&limit=3&appid=${API_KEY}`
       );
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      currentSuggestions = data;
-      renderSuggestions(data);
-    } catch { closeSuggestions(); }
+      if (!response.ok) throw new Error();
+ 
+      // Omvandla svaret från JSON-format till ett JavaScript-objekt vi kan använda
+      const cityList = await response.json();
+ 
+      // Spara listan globalt så att selectSuggestion kan använda den
+      currentCitySuggestions = cityList;
+ 
+      // Bygg och visa dropdown-listan
+      renderSuggestions(cityList);
+ 
+    } catch {
+      // Om något gick fel, stäng bara listan tyst
+      closeSuggestions();
+    }
   }
  
-  function countryFlag(code) {
-    if (!code) return '';            //global,  Caracter
-    return code.toUpperCase().replace(/./g, c =>
-      String.fromCodePoint(c.codePointAt(0) + 127397)
+  // Omvandlar en landskod som "SE" till en emoji-flagga 🇸🇪
+  // Tricket: varje bokstav i koden omvandlas till en unicode-regionssymbol
+  // "global" i replace(/./g) betyder "byt ut VARJE bokstav", inte bara den första
+  function countryCodeToFlag(countryCode) {
+    if (!countryCode) return '';
+    return countryCode.toUpperCase().replace(/./g, letter =>
+      String.fromCodePoint(letter.codePointAt(0) + 127397)
     );
   }
  
-  function renderSuggestions(list) {
-    if (!list.length) { closeSuggestions(); return; }
-    activeIndex = -1;
-    suggestions.innerHTML = list.map((item, i) => `
-      <div class="suggestion-item" data-index="${i}">
-        <span class="flag">${countryFlag(item.country)}</span>
-        <span class="loc-name">${item.name}${item.state ? ', '+item.state : ''}</span>
-        <span class="loc-country">${item.country || ''}</span>
+  // Bygger HTML för dropdown-listan och stoppar in den i suggestions-elementet
+  function renderSuggestions(cityList) {
+    if (!cityList.length) {
+      closeSuggestions();
+      return;
+    }
+ 
+    // Nollställ markerad rad
+    activeRowIndex = -1;
+ 
+    // Bygg en HTML-sträng med en rad per stad och stoppa in den i dropdown-elementet
+    suggestionsList.innerHTML = cityList.map((city, index) => `
+      <div class="suggestion-item" data-index="${index}">
+        <span class="flag">${countryCodeToFlag(city.country)}</span>
+        <span class="loc-name">${city.name}${city.state ? ', ' + city.state : ''}</span>
+        <span class="loc-country">${city.country || ''}</span>
       </div>
     `).join('');
-    suggestions.classList.add('open');
-    suggestions.querySelectorAll('.suggestion-item').forEach(el => {
-      el.addEventListener('mousedown', e => {
-        e.preventDefault();
-        selectSuggestion(parseInt(el.dataset.index));
+ 
+    // Gör listan synlig (CSS reagerar på klassen "open")
+    suggestionsList.classList.add('open');
+ 
+    // Lägg till en klick-lyssnare på varje rad i listan
+    suggestionsList.querySelectorAll('.suggestion-item').forEach(rowElement => {
+      rowElement.addEventListener('mousedown', clickEvent => {
+        // preventDefault hindrar att sökfältet tappar fokus innan klicket registreras
+        clickEvent.preventDefault();
+        selectSuggestion(parseInt(rowElement.dataset.index));
       });
     });
   }
  
+  // Stänger och rensar dropdown-listan
   function closeSuggestions() {
-    suggestions.classList.remove('open');
-    suggestions.innerHTML = '';
-    activeIndex = -1;
-    currentSuggestions = [];
+    suggestionsList.classList.remove('open');
+    suggestionsList.innerHTML = '';
+    activeRowIndex = -1;
+    currentCitySuggestions = [];
   }
  
+  // Kallas när användaren klickar eller trycker Enter på ett förslag i listan
   function selectSuggestion(index) {
-    const item = currentSuggestions[index];
-    if (!item) return;
-    input.value = item.name + (item.state ? `, ${item.state}` : '') + `, ${item.country}`;
+    const selectedCity = currentCitySuggestions[index];
+    if (!selectedCity) return;
+ 
+    // Fyll i sökfältet med stadens fullständiga namn
+    searchInput.value = selectedCity.name
+      + (selectedCity.state ? `, ${selectedCity.state}` : '')
+      + `, ${selectedCity.country}`;
+ 
+    // Stäng listan
     closeSuggestions();
-    fetchWeather(item.lat, item.lon, item.name, item.country);
+ 
+    // Hämta väderdata direkt med koordinaterna vi redan har från Geo API:t
+    // Det sparar ett extra anrop jämfört med att söka på namn igen
+    fetchWeather(selectedCity.lat, selectedCity.lon, selectedCity.name, selectedCity.country);
   }
  
-  // ── Keyboard navigation ──      event.key: "ArrowDown", "ArrowUp", "Enter", "Escape"
-  input.addEventListener('keydown', e => {
-    const items = suggestions.querySelectorAll('.suggestion-item');
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      activeIndex = Math.min(activeIndex + 1, items.length - 1);
-      updateActive(items);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      activeIndex = Math.max(activeIndex - 1, 0);
-      updateActive(items);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (activeIndex >= 0) {
-        selectSuggestion(activeIndex);
-      } else if (input.value.trim()) {
+ 
+  // ════════════════════════════════════════════════════
+  //  TANGENTBORDSNAVIGERING i dropdown-listan
+  // ════════════════════════════════════════════════════
+ 
+  // Lyssnar på tangenttryckningar när sökfältet är aktivt
+  searchInput.addEventListener('keydown', keyboardEvent => {
+    const allRows = suggestionsList.querySelectorAll('.suggestion-item');
+ 
+    if (keyboardEvent.key === 'ArrowDown') {
+      // Pil ned: flytta markeringen ett steg ner, men inte förbi sista raden
+      keyboardEvent.preventDefault();
+      activeRowIndex = Math.min(activeRowIndex + 1, allRows.length - 1);
+      highlightActiveRow(allRows);
+ 
+    } else if (keyboardEvent.key === 'ArrowUp') {
+      // Pil upp: flytta markeringen ett steg upp, men inte förbi första raden
+      keyboardEvent.preventDefault();
+      activeRowIndex = Math.max(activeRowIndex - 1, 0);
+      highlightActiveRow(allRows);
+ 
+    } else if (keyboardEvent.key === 'Enter') {
+      // Enter: välj den markerade raden, eller sök på det man skrivit om ingen rad är markerad
+      keyboardEvent.preventDefault();
+      if (activeRowIndex >= 0) {
+        selectSuggestion(activeRowIndex);
+      } else if (searchInput.value.trim()) {
         closeSuggestions();
-        searchByName(input.value.trim());
+        searchByName(searchInput.value.trim());
       }
-    } else if (e.key === 'Escape') {
+ 
+    } else if (keyboardEvent.key === 'Escape') {
+      // Escape: stäng listan
       closeSuggestions();
     }
   });
  
-  //el = element i dropdown listan, i = index för det elementet, activeIndex = index för det som är markerat
-  function updateActive(items) {
-    items.forEach((el, i) => el.classList.toggle('active', i === activeIndex));
-    if (items[activeIndex]) items[activeIndex].scrollIntoView({ block: 'nearest' });
+  // Uppdaterar vilken rad i listan som ser markerad ut (blå bakgrund)
+  function highlightActiveRow(allRows) {
+    // Loopa igenom alla rader och lägg till/ta bort klassen "active"
+    allRows.forEach((rowElement, index) => {
+      rowElement.classList.toggle('active', index === activeRowIndex);
+    });
+    // Scrolla så den markerade raden syns om listan är lång
+    if (allRows[activeRowIndex]) {
+      allRows[activeRowIndex].scrollIntoView({ block: 'nearest' });
+    }
   }
  
-  
-  //tid innan sökalternativ visas
-  input.addEventListener('input', debounce(() => {
-    fetchSuggestions(input.value.trim());
+  // Lyssna på ändringar i sökfältet och hämta förslag (via debounce)
+  searchInput.addEventListener('input', debounce(() => {
+    fetchSuggestions(searchInput.value.trim());
   }, 280));
  
-  input.addEventListener('blur', () => setTimeout(closeSuggestions, 150));
+  // När sökfältet tappar fokus: stäng listan efter 150ms
+  // Fördröjningen behövs så att ett klick på ett förslag hinner registreras först
+  searchInput.addEventListener('blur', () => setTimeout(closeSuggestions, 150));
  
-  // ── Sök via namn (fallback) ──
-  async function searchByName(name) {
+ 
+  // ════════════════════════════════════════════════════
+  //  SÖK PÅ NAMN – fallback om man trycker Enter utan att välja förslag
+  // ════════════════════════════════════════════════════
+ 
+  async function searchByName(cityName) {
     showError(false);
-    showLoader(true);
+    showLoadingSpinner(true);
     try {
-      const res = await fetch(
-        `${BASE}/geo/1.0/direct?q=${encodeURIComponent(name)}&limit=1&appid=${API_KEY}`
+      // Gör ett Geo API-anrop för att hitta koordinater för det inmatade namnet
+      const response = await fetch(
+        `${BASE_URL}/geo/1.0/direct?q=${encodeURIComponent(cityName)}&limit=1&appid=${API_KEY}`
       );
-      if (!res.ok) throw new Error('Nätverksfel');
-      const list = await res.json();
-      if (!list.length) throw new Error(`Staden "${name}" hittades inte.`);
-      const { lat, lon, name: cityName, country } = list[0];
-      await fetchWeather(lat, lon, cityName, country);
-    } catch (err) {
-      showLoader(false);
-      showError(err.message || 'Något gick fel. Försök igen.');
+      if (!response.ok) throw new Error('Nätverksfel');
+ 
+      const cityList = await response.json();
+      if (!cityList.length) throw new Error(`Staden "${cityName}" hittades inte.`);
+ 
+      // Plocka ut koordinater och namn från det första (och enda) resultatet
+      const { lat, lon, name: foundCityName, country } = cityList[0];
+ 
+      await fetchWeather(lat, lon, foundCityName, country);
+ 
+    } catch (error) {
+      showLoadingSpinner(false);
+      showError(error.message || 'Något gick fel. Försök igen.');
     }
   }
  
-  // ── Väder-API ──
-  async function fetchWeather(lat, lon, name, country) {
+ 
+  // ════════════════════════════════════════════════════
+  //  HÄMTA VÄDERDATA – skickar API-anrop till OpenWeather
+  // ════════════════════════════════════════════════════
+ 
+  async function fetchWeather(latitude, longitude, cityName, countryCode) {
     showError(false);
-    showLoader(true);
+    showLoadingSpinner(true);
     try {
-      // Hämta aktuellt väder och prognos parallellt
-      const [weatherRes, forecastRes] = await Promise.all([
-        fetch(`${BASE}/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=sv`),
-        fetch(`${BASE}/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=sv`)
+      // Skicka två anrop SAMTIDIGT med Promise.all – ett för aktuellt väder, ett för prognos
+      // Det går dubbelt så snabbt som att skicka dem ett i taget
+      const [weatherResponse, forecastResponse] = await Promise.all([
+        fetch(`${BASE_URL}/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${API_KEY}&units=metric&lang=sv`),
+        fetch(`${BASE_URL}/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${API_KEY}&units=metric&lang=sv`)
       ]);
  
-      if (!weatherRes.ok) {
-        const err = await weatherRes.json().catch(() => ({}));
-        throw new Error(err.message || `Fel ${weatherRes.status}`);
+      // Kontrollera att väder-anropet gick bra
+      if (!weatherResponse.ok) {
+        const errorBody = await weatherResponse.json().catch(() => ({}));
+        throw new Error(errorBody.message || `Fel ${weatherResponse.status}`);
       }
  
-      const data         = await weatherRes.json();
-      const forecastData = forecastRes.ok ? await forecastRes.json() : null;
+      // Omvandla båda svaren från JSON till JavaScript-objekt
+      const weatherData   = await weatherResponse.json();
+      const forecastData  = forecastResponse.ok ? await forecastResponse.json() : null;
  
-      renderWeather(data, name, country);
+      // Skicka datan till renderfunktionerna som stoppar in värdena i HTML:en
+      renderWeather(weatherData, cityName, countryCode);
       if (forecastData) renderForecast(forecastData.list);
  
-    } catch (err) {
-      showError(err.message || 'Kunde inte hämta väderdata.');
+    } catch (error) {
+      showError(error.message || 'Kunde inte hämta väderdata.');
     } finally {
-      showLoader(false);
+      // "finally" körs alltid oavsett om det gick bra eller dåligt
+      showLoadingSpinner(false);
     }
   }
  
-  // ── Plocka ut ett värde per dag (kl 12:00) ──
-  function getDailyForecasts(list) {
-    const seen = new Set();
-    return list.filter(item => {
-      const date = item.dt_txt.split(' ')[0]; // "2024-04-23"
-      if (!seen.has(date) && item.dt_txt.includes('12:00:00')) {
-        seen.add(date);
+ 
+  // ════════════════════════════════════════════════════
+  //  PROGNOS – filtrera och rendera 3 dagar framåt
+  // ════════════════════════════════════════════════════
+ 
+  // Forecast API:t returnerar ~40 tidpunkter (var 3:e timme i 5 dagar)
+  // Den här funktionen plockar ut ett värde per dag, helst kl 12:00
+  function getDailyForecasts(forecastList) {
+    const datesAlreadySeen = new Set(); // Set är som en lista som inte tillåter dubbletter
+ 
+    return forecastList.filter(forecastItem => {
+      // dt_txt ser ut såhär: "2024-04-23 12:00:00"
+      // split(' ') delar upp strängen vid mellanslaget → ["2024-04-23", "12:00:00"]
+      // [0] plockar ut den första delen → "2024-04-23"
+      const dateString = forecastItem.dt_txt.split(' ')[0];
+ 
+      // Behåll bara poster som är kl 12:00 och vars datum vi inte sett förut
+      if (!datesAlreadySeen.has(dateString) && forecastItem.dt_txt.includes('12:00:00')) {
+        datesAlreadySeen.add(dateString);
         return true;
       }
       return false;
+ 
+    // slice(0, 3) klipper ut de tre första elementen ur den filtrerade listan
     }).slice(0, 3);
   }
  
-  // ── Rendera prognos-kort ──
-  function renderForecast(list) {
-    const days = getDailyForecasts(list);
-    // Fallback om 12:00-poster saknas (t.ex. tidzon-offset): ta första per dag
-    const fallback = (() => {
-      if (days.length >= 3) return days;
-      const seen = new Set();
-      return list.filter(item => {
-        const date = item.dt_txt.split(' ')[0];
-        if (!seen.has(date)) { seen.add(date); return true; }
-        return false;
-      }).slice(1, 4); // hoppa över dagens datum
-    })();
+  // Bygger och visar de tre prognosdagarna i HTML:en
+  function renderForecast(forecastList) {
+    let threeDays = getDailyForecasts(forecastList);
  
-    document.getElementById('forecastRow').innerHTML = fallback.map(day => {
-      const date    = new Date(day.dt * 1000);
-      const dayName = date.toLocaleDateString('sv-SE', { weekday: 'short' }); // "tis"
-      const temp    = Math.round(day.main.temp);
-      const icon    = day.weather[0].icon;
-      const desc    = day.weather[0].description;
+    // Fallback: om vi inte fick tre 12:00-poster (t.ex. på grund av tidszon)
+    // tar vi istället den första posten per dag och hoppar över dagens datum
+    if (threeDays.length < 3) {
+      const datesAlreadySeen = new Set();
+      threeDays = forecastList.filter(forecastItem => {
+        const dateString = forecastItem.dt_txt.split(' ')[0];
+        if (!datesAlreadySeen.has(dateString)) {
+          datesAlreadySeen.add(dateString);
+          return true;
+        }
+        return false;
+      }).slice(1, 4); // slice(1, 4) hoppar över index 0 (idag) och tar index 1–3
+    }
+ 
+    // Bygg HTML-kort för varje dag och stoppa in dem i forecastRow-elementet
+    document.getElementById('forecastRow').innerHTML = threeDays.map(forecastDay => {
+      // dt är tidpunkten som ett unix-tal (sekunder sedan 1970)
+      // Multiplicera med 1000 för att få millisekunder som JavaScript's Date förväntar sig
+      const dateObject  = new Date(forecastDay.dt * 1000);
+      const dayName     = dateObject.toLocaleDateString('sv-SE', { weekday: 'short' }); // t.ex. "tis"
+      const temperature = Math.round(forecastDay.main.temp);
+      const iconCode    = forecastDay.weather[0].icon;
+      const description = forecastDay.weather[0].description;
+ 
       return `
         <div class="forecast-box">
           <div class="forecast-day">${dayName}</div>
-          <img src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${desc}" />
-          <div class="forecast-temp">${temp}°</div>
-          <div class="forecast-desc">${desc}</div>
+          <img src="https://openweathermap.org/img/wn/${iconCode}@2x.png" alt="${description}" />
+          <div class="forecast-temp">${temperature}°</div>
+          <div class="forecast-desc">${description}</div>
         </div>
       `;
-    }).join('');
+    }).join(''); // join('') sätter ihop alla HTML-strängar till en enda stor sträng
   }
  
-  // ── Rendera kort ── d = data från API, name = stadens namn, country = land (kan vara undefined)
-  function renderWeather(d, name, country) {
-    document.getElementById('cityDisplay').textContent    = name;
-    document.getElementById('countryDisplay').textContent = country || '';
-    document.getElementById('tempDisplay').textContent    = Math.round(d.main.temp);
-    document.getElementById('descDisplay').textContent    = d.weather[0].description;
-    document.getElementById('humidityDisplay').textContent = `${d.main.humidity} %`;
-    document.getElementById('windDisplay').textContent    = `${Math.round(d.wind.speed * 3.6)} km/h`;
-    document.getElementById('pressureDisplay').textContent = `${d.main.pressure} hPa`;
+ 
+  // ════════════════════════════════════════════════════
+  //  RENDERA VÄDERKORTET – stoppar in data i HTML-elementen
+  // ════════════════════════════════════════════════════
+ 
+  function renderWeather(weatherData, cityName, countryCode) {
+    // Stoppa in varje värde i rätt HTML-element via textContent
+    document.getElementById('cityDisplay').textContent     = cityName;
+    document.getElementById('countryDisplay').textContent  = countryCode || '';
+    document.getElementById('tempDisplay').textContent     = Math.round(weatherData.main.temp);
+    document.getElementById('descDisplay').textContent     = weatherData.weather[0].description;
+    document.getElementById('humidityDisplay').textContent = `${weatherData.main.humidity} %`;
+ 
+    // Vinden från API:t kommer i meter per sekund – multiplicera med 3.6 för att få km/h
+    document.getElementById('windDisplay').textContent     = `${Math.round(weatherData.wind.speed * 3.6)} km/h`;
+    document.getElementById('pressureDisplay').textContent = `${weatherData.main.pressure} hPa`;
+ 
+    // Sikten kommer i meter – dela med 1000 för att få km. toFixed(1) ger en decimal
     document.getElementById('visibilityDisplay').textContent =
-      d.visibility != null ? `${(d.visibility / 1000).toFixed(1)} km` : '—';
-    document.getElementById('feelsDisplay').textContent   = Math.round(d.main.feels_like);
+      weatherData.visibility != null ? `${(weatherData.visibility / 1000).toFixed(1)} km` : '—';
  
-    // Ikon
-    const iconWrap = document.getElementById('iconWrap');
-    const code = d.weather[0].icon;
-    iconWrap.innerHTML = `<img src="https://openweathermap.org/img/wn/${code}@2x.png" alt="${d.weather[0].description}" />`;
+    document.getElementById('feelsDisplay').textContent    = Math.round(weatherData.main.feels_like);
  
-    // Tidsstämpel
-    const now = new Date();
+    // Väderikonen: bygg en img-tagg med rätt URL och stoppa in den med innerHTML
+    const iconContainer = document.getElementById('iconWrap');
+    const iconCode      = weatherData.weather[0].icon;
+    iconContainer.innerHTML = `<img src="https://openweathermap.org/img/wn/${iconCode}@2x.png" alt="${weatherData.weather[0].description}" />`;
+ 
+    // Visa klockslaget för när datan hämtades
+    const rightNow = new Date();
     document.getElementById('updatedDisplay').textContent =
-      `Uppdaterad ${now.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}`;
+      `Uppdaterad ${rightNow.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}`;
  
-    card.classList.add('show');
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Visa väderkortet (CSS reagerar på klassen "show" och gör det synligt)
+    weatherCard.classList.add('show');
+    weatherCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
  
-  //v = true/false
-  function showLoader(v) {
-    loader.classList.toggle('show', v);
-    if (v) card.classList.remove('show');
+ 
+  // ════════════════════════════════════════════════════
+  //  HJÄLPFUNKTIONER – visa/dölj spinnern och felmeddelanden
+  // ════════════════════════════════════════════════════
+ 
+  // Visar eller döljer laddningsspinnern
+  // isVisible = true → visa spinnern och dölj väderkortet
+  // isVisible = false → dölj spinnern
+  function showLoadingSpinner(isVisible) {
+    loadingSpinner.classList.toggle('show', isVisible);
+    if (isVisible) weatherCard.classList.remove('show');
   }
  
-  function showError(msgOrFalse) {
-    if (msgOrFalse === false) {
-      errorMsg.classList.remove('show');
+  // Visar eller döljer felmeddelandet
+  // errorText = en textsträng → visa meddelandet
+  // errorText = false        → dölj meddelandet
+  function showError(errorText) {
+    if (errorText === false) {
+      errorMessage.classList.remove('show');
     } else {
-      errorMsg.textContent = msgOrFalse;
-      errorMsg.classList.add('show');
+      errorMessage.textContent = errorText;
+      errorMessage.classList.add('show');
     }
   }
