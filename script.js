@@ -1,6 +1,7 @@
 
 
-  import { API_KEY } from './config.js';
+// Fyll in din API-nyckel från openweathermap.org:
+const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
 
 
  // Bas-URL till OpenWeathers API
@@ -15,7 +16,7 @@
   const apiKeyNotice     = document.getElementById('apiNotice');
  
   // Visa en varning om API-nyckeln inte är ifylld
-  if (!API_KEY || API_KEY === 'DIN_API_NYCKEL_HÄR') {
+  if (!API_KEY) {
     apiKeyNotice.classList.add('show');
   }
  
