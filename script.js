@@ -1,10 +1,10 @@
 
 
-// Fyll in din API-nyckel från openweathermap.org:
+
 const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
 
 
- // Bas-URL till OpenWeathers API
+
   const BASE_URL = 'https://api.openweathermap.org';
  
 
@@ -21,14 +21,9 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
   }
  
  
-  // ════════════════════════════════════════════════════
+  
   //  DEBOUNCE – vänta lite innan sökning körs
-  // ════════════════════════════════════════════════════
-  // Problemet: om vi söker på varje bokstav skickas massor av anrop.
-  // Lösningen: vänta tills användaren slutat skriva i 280ms, sök sedan.
-  //
-  // functionToRun  = den funktion vi vill fördröja (t.ex. fetchSuggestions)
-  // waitMillis     = hur många millisekunder vi väntar
+
   let debounceTimer = null;
  
   function debounce(functionToRun, waitMillis) {
@@ -41,12 +36,11 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
   }
  
  
-  // ════════════════════════════════════════════════════
   //  AUTOCOMPLETE – stadsförslag medan man skriver
-  // ════════════════════════════════════════════════════
+
  
   // Håller koll på vilken rad i dropdown-listan som är markerad med tangentbordet
-  let activeRowIndex = -1;  // -1 betyder att ingen rad är markerad
+  let activeRowIndex = -1;  // -1 = ingen rad är markerad
  
   // Sparar listan med stadsförslag som kom från API:t
   let currentCitySuggestions = [];
@@ -81,7 +75,7 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
     }
   }
  
-  // Omvandlar en landskod som "SE" till en emoji-flagga 🇸🇪
+  // Omvandlar en landskod som "SE" till en emoji-flagga 
   // Tricket: varje bokstav i koden omvandlas till en unicode-regionssymbol
   // "global" i replace(/./g) betyder "byt ut VARJE bokstav", inte bara den första
   function countryCodeToFlag(countryCode) {
@@ -149,10 +143,7 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
     fetchWeather(selectedCity.lat, selectedCity.lon, selectedCity.name, selectedCity.country);
   }
  
- 
-  // ════════════════════════════════════════════════════
-  //  TANGENTBORDSNAVIGERING i dropdown-listan
-  // ════════════════════════════════════════════════════
+
  
   // Lyssnar på tangenttryckningar när sökfältet är aktivt
   searchInput.addEventListener('keydown', keyboardEvent => {
@@ -208,10 +199,9 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
   searchInput.addEventListener('blur', () => setTimeout(closeSuggestions, 150));
  
  
-  // ════════════════════════════════════════════════════
+
   //  SÖK PÅ NAMN – fallback om man trycker Enter utan att välja förslag
-  // ════════════════════════════════════════════════════
- 
+
   async function searchByName(cityName) {
     showError(false);
     showLoadingSpinner(true);
@@ -236,10 +226,8 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
     }
   }
  
- 
-  // ════════════════════════════════════════════════════
   //  HÄMTA VÄDERDATA – skickar API-anrop till OpenWeather
-  // ════════════════════════════════════════════════════
+
  
   async function fetchWeather(latitude, longitude, cityName, countryCode) {
     showError(false);
@@ -274,10 +262,7 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
     }
   }
  
- 
-  // ════════════════════════════════════════════════════
   //  PROGNOS – filtrera och rendera 3 dagar framåt
-  // ════════════════════════════════════════════════════
  
   // Forecast API:t returnerar ~40 tidpunkter (var 3:e timme i 5 dagar)
   // Den här funktionen plockar ut ett värde per dag, helst kl 12:00
@@ -285,9 +270,7 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
     const datesAlreadySeen = new Set(); // Set är som en lista som inte tillåter dubbletter
  
     return forecastList.filter(forecastItem => {
-      // dt_txt ser ut såhär: "2024-04-23 12:00:00"
-      // split(' ') delar upp strängen vid mellanslaget → ["2024-04-23", "12:00:00"]
-      // [0] plockar ut den första delen → "2024-04-23"
+   
       const dateString = forecastItem.dt_txt.split(' ')[0];
  
       // Behåll bara poster som är kl 12:00 och vars datum vi inte sett förut
@@ -340,10 +323,8 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
     }).join(''); // join('') sätter ihop alla HTML-strängar till en enda stor sträng
   }
  
- 
-  // ════════════════════════════════════════════════════
   //  RENDERA VÄDERKORTET – stoppar in data i HTML-elementen
-  // ════════════════════════════════════════════════════
+
  
   function renderWeather(weatherData, cityName, countryCode) {
     // Stoppa in varje värde i rätt HTML-element via textContent
@@ -378,22 +359,16 @@ const API_KEY = 'd33ad84232125cb4526a9e4f51ac446c';
     weatherCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
  
- 
-  // ════════════════════════════════════════════════════
   //  HJÄLPFUNKTIONER – visa/dölj spinnern och felmeddelanden
-  // ════════════════════════════════════════════════════
+
  
   // Visar eller döljer laddningsspinnern
-  // isVisible = true → visa spinnern och dölj väderkortet
-  // isVisible = false → dölj spinnern
   function showLoadingSpinner(isVisible) {
     loadingSpinner.classList.toggle('show', isVisible);
     if (isVisible) weatherCard.classList.remove('show');
   }
  
   // Visar eller döljer felmeddelandet
-  // errorText = en textsträng → visa meddelandet
-  // errorText = false        → dölj meddelandet
   function showError(errorText) {
     if (errorText === false) {
       errorMessage.classList.remove('show');
